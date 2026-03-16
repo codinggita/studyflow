@@ -3,4 +3,6 @@ node_modules
 controllers
 middlewares
 models
-routes
+routes/analyticsRoutes.js
+routes/subjectRoutes.js
+routes/taskRoutes.js
