@@ -1,15 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, CheckCircle2, Circle, Clock, MoreVertical, Trash2, Edit, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, CheckCircle2, Circle, Clock, MoreVertical, Trash2, Edit, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 
 const Tasks = () => {
+  const [searchParams] = useSearchParams();
+  const subjectIdParam = searchParams.get('subjectId');
+
   const [tasks, setTasks] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const limit = 10;
+
   const [newTask, setNewTask] = useState({
     title: '',
-    subject: '',
+    subject: subjectIdParam || '',
     priority: 'Medium',
     dueDate: new Date().toISOString().split('T')[0]
   });
@@ -20,46 +31,57 @@ const Tasks = () => {
   
   // Debounce search input
   useEffect(() => {
-    const handler = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
   useEffect(() => {
-    const fetchData = async () => {
+    fetchTasks();
+  }, [currentPage, debouncedSearch, filter, subjectIdParam]);
+
+  useEffect(() => {
+    const fetchSubjects = async () => {
       try {
-        const [tasksRes, subjectsRes] = await Promise.all([
-          api.get('/tasks?limit=50'),
-          api.get('/subjects')
-        ]);
-        setTasks(tasksRes.data.data);
-        setSubjects(subjectsRes.data.data);
-        
-        if (subjectsRes.data.data.length > 0) {
-          setNewTask(prev => ({ ...prev, subject: subjectsRes.data.data[0]._id }));
+        const res = await api.get('/subjects');
+        setSubjects(res.data.data);
+        if (!newTask.subject && res.data.data.length > 0) {
+          setNewTask(prev => ({ ...prev, subject: res.data.data[0]._id }));
         }
       } catch (error) {
-        console.error('Error fetching tasks', error);
-      } finally {
-        setIsLoading(false);
+        console.error('Error fetching subjects', error);
       }
     };
-    fetchData();
+    fetchSubjects();
   }, []);
 
-  // Filter tasks
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      const subjectTitle = task.subject?.title || '';
-      // Search match
-      const matchesSearch = task.title.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
-                            subjectTitle.toLowerCase().includes(debouncedSearch.toLowerCase());
-      // Filter match
-      const matchesFilter = filter === 'All' ? true : 
-                            (filter === 'Completed' ? task.completed : !task.completed);
-                            
-      return matchesSearch && matchesFilter;
-    });
-  }, [tasks, debouncedSearch, filter]);
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+      const params = {
+        page: currentPage,
+        limit,
+        search: debouncedSearch,
+        completed: filter === 'All' ? undefined : (filter === 'Completed' ? 'true' : 'false'),
+        subject: subjectIdParam || undefined
+      };
+      
+      const res = await api.get('/tasks', { params });
+      setTasks(res.data.data);
+      setTotalPages(res.data.totalPages);
+      setTotalTasks(res.data.total);
+    } catch (error) {
+      console.error('Error fetching tasks', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // We keep the filteredTasks name for compatibility with existing render logic
+  // but note that the backend is now doing the filtering
+  const filteredTasks = tasks;
 
   const toggleTaskStatus = async (id, currentStatus) => {
     try {
@@ -306,15 +328,38 @@ const Tasks = () => {
         </div>
       )}
 
-      {/* Pagination Placeholder */}
-      <div className="mt-8 flex justify-center">
-        <div className="flex gap-1 glass-card p-1 rounded-lg">
-          <button className="px-3 py-1 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-surface" disabled>Prev</button>
-          <button className="px-3 py-1 rounded-md bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-medium">1</button>
-          <button className="px-3 py-1 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-surface">2</button>
-          <button className="px-3 py-1 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-surface">Next</button>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-8 flex justify-center items-center gap-4">
+          <button 
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="p-2 rounded-lg glass-card disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          
+          <div className="flex gap-2">
+            {[...Array(totalPages)].map((_, i) => (
+              <button
+                key={i + 1}
+                onClick={() => setCurrentPage(i + 1)}
+                className={`w-10 h-10 rounded-lg font-medium transition-all ${currentPage === i + 1 ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' : 'glass-card hover:bg-gray-100 dark:hover:bg-dark-surface'}`}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+
+          <button 
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="p-2 rounded-lg glass-card disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };

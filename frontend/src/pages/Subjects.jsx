@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, BookOpen, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const Subjects = () => {
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,8 +108,13 @@ const Subjects = () => {
                 </div>
               </div>
               <div className="mt-6 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
-                <span>0 Tasks</span>
-                <span className="cursor-pointer hover:text-primary-600 dark:hover:text-primary-500 transition-colors">View Tasks →</span>
+                <span>{subject.taskCount || 0} Tasks</span>
+                <span 
+                  onClick={() => navigate(`/tasks?subjectId=${subject._id}`)}
+                  className="cursor-pointer hover:text-primary-600 dark:hover:text-primary-500 transition-colors"
+                >
+                  View Tasks →
+                </span>
               </div>
             </div>
           ))}

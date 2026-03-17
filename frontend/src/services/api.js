@@ -35,6 +35,15 @@ api.interceptors.response.use(
          window.location.href = '/login';
       }
     }
+    
+    // Log error for debugging
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
     return Promise.reject(error);
   }
 );

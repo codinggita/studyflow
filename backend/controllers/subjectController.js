@@ -1,12 +1,39 @@
 import Subject from '../models/Subject.js';
 import Task from '../models/Task.js';
+import mongoose from 'mongoose';
 
 // @desc    Get all subjects for a user
 // @route   GET /api/subjects
 // @access  Private
 export const getSubjects = async (req, res, next) => {
   try {
-    const subjects = await Subject.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const subjects = await Subject.aggregate([
+      {
+        $match: { user: new mongoose.Types.ObjectId(req.user._id) }
+      },
+      {
+        $lookup: {
+          from: 'tasks',
+          localField: '_id',
+          foreignField: 'subject',
+          as: 'tasks'
+        }
+      },
+      {
+        $addFields: {
+          taskCount: { $size: '$tasks' }
+        }
+      },
+      {
+        $project: {
+          tasks: 0 // Remove the actual tasks array to save bandwidth
+        }
+      },
+      {
+        $sort: { createdAt: -1 }
+      }
+    ]);
+
     res.json({ success: true, count: subjects.length, data: subjects });
   } catch (error) {
     next(error);
